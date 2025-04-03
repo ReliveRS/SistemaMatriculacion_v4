@@ -2,7 +2,8 @@
 ## Profesor: Andrés Rubio del Río
 ## Alumno: Rafael Segura Orta
 Primeros Pasos
-![SistemaMatriculacion_v4](https://github.com/user-attachments/assets/9f401cde-9091-451a-8d19-983cb54c3eb0)
+![SistemaMatriculacion_v4](https://github.com/user-attachments/assets/fa8626bf-cee1-4b7f-a00a-aff2e4f7414f)
+
 
     Lo primero que debes hacer es realizar un clone de tu repositorio a un nuevo repositorio para que contenga la versión 4 de la aplicación.
     Clona tu repositorio remoto recién copiado en GitHub a un repositorio local que será donde irás realizando lo que a continuación se te pide. 
