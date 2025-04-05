@@ -97,7 +97,7 @@ public class Alumnos implements IAlumnos {
             sentencia.setDate(5, Date.valueOf(alumno.getFechaNacimiento()));
             sentencia.executeUpdate();
         } catch (SQLIntegrityConstraintViolationException e) {
-            throw new OperationNotSupportedException("ERROR: Ya existe un aula con ese nombre.");
+            throw new OperationNotSupportedException("ERROR: Ya existe un alumno con ese nombre.");
         } catch (SQLException e) {
             throw new OperationNotSupportedException(ERROR + e.getMessage());
         }

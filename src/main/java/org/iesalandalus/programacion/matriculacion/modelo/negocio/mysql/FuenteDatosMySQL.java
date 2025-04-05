@@ -3,23 +3,24 @@ package org.iesalandalus.programacion.matriculacion.modelo.negocio.mysql;
 import org.iesalandalus.programacion.matriculacion.modelo.negocio.*;
 
 public class FuenteDatosMySQL implements IFuenteDatos {
+
     @Override
     public IAlumnos crearAlumnos() {
-        return null;
+        return new Alumnos();
     }
 
     @Override
     public ICiclosFormativos crearCiclosFormativos() {
-        return null;
+        return new CiclosFormativos();
     }
 
     @Override
     public IAsignaturas crearAsignaturas() {
-        return null;
+        return new Asignaturas();
     }
 
     @Override
     public IMatriculas crearMatriculas() {
-        return null;
+        return new Matriculas();
     }
 }
