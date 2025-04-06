@@ -1,17 +1,36 @@
 package org.iesalandalus.programacion.matriculacion.modelo.negocio.memoria;
 import org.iesalandalus.programacion.matriculacion.modelo.dominio.Asignatura;
+import org.iesalandalus.programacion.matriculacion.modelo.negocio.IAsignaturas;
 
 import javax.naming.OperationNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Asignaturas {
-
+public class Asignaturas implements IAsignaturas {
+    private static Asignaturas instancia;
     private List<Asignatura> coleccionAsignaturas;
 
-    public Asignaturas() {
 
+    public static Asignaturas getInstancia() {
+        if (instancia == null) {
+            instancia = new Asignaturas();
+        }
+        return instancia;
+    }
+    public Asignaturas() {
         coleccionAsignaturas = new ArrayList<>();
+    }
+
+    @Override
+    public void comenzar() {
+        coleccionAsignaturas = new ArrayList<>(); // Inicializa una nueva lista vacía
+        System.out.println("Colección de asignaturas inicializada.");
+    }
+
+    @Override
+    public void terminar() {
+        coleccionAsignaturas.clear(); // Limpia la lista existente
+        System.out.println("Colección de asignaturas limpiada.");
     }
 
     public List<Asignatura> get(){
@@ -26,8 +45,8 @@ public class Asignaturas {
         }
         return otrosAsignaturas;
     }
-
-    private int getTamano(){
+    @Override
+    public int getTamano(){
         return coleccionAsignaturas.size();
     }
 

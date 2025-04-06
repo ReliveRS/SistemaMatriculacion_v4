@@ -1,23 +1,45 @@
 package org.iesalandalus.programacion.matriculacion.modelo.negocio.memoria;
 import org.iesalandalus.programacion.matriculacion.modelo.dominio.Alumno;
+import org.iesalandalus.programacion.matriculacion.modelo.negocio.IAlumnos;
 
 import javax.naming.OperationNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Alumnos {
+public class Alumnos implements IAlumnos {
 
     private List<Alumno> coleccionAlumnos;
+    private static Alumnos instancia;
 
-
+    public static Alumnos getInstancia() {
+        if (instancia == null) {
+            instancia = new Alumnos();
+        }
+        return instancia;
+    }
 
     public Alumnos() {
         coleccionAlumnos = new ArrayList<>();
     }
 
+    @Override
+    public void comenzar() {
+        coleccionAlumnos = new ArrayList<>(); // Inicializa una nueva lista vacía
+        System.out.println("Colección de alumnos inicializada.");
+    }
+
+    @Override
+    public void terminar() {
+        coleccionAlumnos.clear(); // Limpia la lista existente
+        System.out.println("Colección de alumnos limpiada.");
+    }
+
     public List<Alumno> get(){
         return copiaProfundaAlumnos(coleccionAlumnos);
     }
+
+
+
 
     private List<Alumno> copiaProfundaAlumnos(List<Alumno> alumnos) {
         List<Alumno> otrosAlumnos = new ArrayList<>();
@@ -26,8 +48,8 @@ public class Alumnos {
         }
         return otrosAlumnos;
     }
-
-    private int GetTamano(){
+    @Override
+    public int getTamano(){
         return coleccionAlumnos.size();
 
     }
@@ -63,9 +85,12 @@ public class Alumnos {
 
 
     public void borrar(Alumno alumno) throws OperationNotSupportedException {
+        System.out.println("Usando implementación Memoria para borrar alumno.");
+
         if (alumno == null) {
             throw new IllegalArgumentException("ERROR: El alumno no puede ser nulo.");
         }
+
         int indice = coleccionAlumnos.indexOf(alumno);
         if (indice == -1) {
             throw new OperationNotSupportedException("Error: No existe ningun alumno con ese DNI");

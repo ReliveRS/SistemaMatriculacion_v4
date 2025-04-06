@@ -51,9 +51,12 @@ public class Controlador {
     }
 
     public List<Alumno> getAlumnos() {
-        return List.copyOf(modelo.getAlumnos());
+        List<Alumno> alumnos = modelo.getAlumnos();
+        if (alumnos == null) {
+            throw new IllegalStateException("ERROR: La lista de alumnos es nula.");
+        }
+        return List.copyOf(alumnos);
     }
-
     public void insertar(Asignatura asignatura) throws OperationNotSupportedException {
 
         modelo.insertar(asignatura);

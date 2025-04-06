@@ -126,7 +126,7 @@ public class Vista {
         System.out.println("Borrar Alumno");
         try {
             String dni = Consola.getDniAlumno(); // Obtener el DNI validado
-            controlador.borrar(new Alumno(dni, "Nombre Ficticio", "correo@ficticio.com", "123456789", LocalDate.now())); // Borrar por DNI
+            controlador.borrar(new Alumno("nombre Ficticio","601169058", "correo@ficticio.com", dni, LocalDate.now().minusYears(16).minusDays(1))); // Borrar por DNI
             System.out.println("Alumno borrado correctamente.");
         } catch (Exception e) {
             System.out.println("Error al borrar el alumno: " + e.getMessage());
@@ -134,16 +134,26 @@ public class Vista {
     }
 
     private void mostrarAlumnos() {
-        List<Alumno> alumnos = controlador.getAlumnos();
-        if (alumnos.isEmpty()) {
-            System.out.println("No hay alumnos registrados.");
-        } else {
-            alumnos.sort(Comparator.comparing(Alumno::getDni));
-            for (Alumno alumno : alumnos) {
-                System.out.println(alumno);
+        try {
+            List<Alumno> alumnos = controlador.getAlumnos();
+            if (alumnos == null || alumnos.isEmpty()) {
+                System.out.println("No hay alumnos registrados.");
+            } else {
+                System.out.println("Lista de Alumnos:");
+                for (Alumno alumno : alumnos) {
+                    System.out.println(alumno);
+                }
             }
+        } catch (Exception e) {
+            System.out.println("Error al mostrar los alumnos: " + e.getMessage());
         }
     }
+
+
+
+
+
+
 
     private void insertarAsignatura() {
         System.out.println("Insertar Asignatura");
@@ -252,18 +262,25 @@ public class Vista {
             CicloFormativo cicloFormativo = Consola.leerCicloFormativo();
             controlador.insertar(cicloFormativo);
             System.out.println("Ciclo formativo insertado correctamente.");
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             System.out.println("Error al insertar el ciclo formativo: " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("Error inesperado al insertar el ciclo formativo: " + e.getMessage());
         }
     }
+
 
     private void buscarCicloFormativo() {
         System.out.println("Buscar Ciclo Formativo");
         try {
-            CicloFormativo cicloFormativo = Consola.leerCicloFormativo();
-            cicloFormativo = controlador.buscar(cicloFormativo);
-            if (cicloFormativo != null) {
-                System.out.println("Ciclo formativo encontrado: " + cicloFormativo);
+            // Obtener el ciclo formativo por código
+            CicloFormativo cicloFormativo = Consola.getCicloFormativoPorCodigo();
+
+            // Buscar el ciclo formativo en el controlador
+            CicloFormativo encontrado = controlador.buscar(cicloFormativo);
+
+            if (encontrado != null) {
+                System.out.println("Ciclo formativo encontrado: " + encontrado);
             } else {
                 System.out.println("No se encontró un ciclo formativo con el código proporcionado.");
             }
@@ -272,28 +289,43 @@ public class Vista {
         }
     }
 
+
+
+
     private void borrarCicloFormativo() {
         System.out.println("Borrar Ciclo Formativo");
         try {
-            CicloFormativo cicloFormativo = Consola.leerCicloFormativo();
+            // Obtener el ciclo formativo por código
+            CicloFormativo cicloFormativo = Consola.getCicloFormativoPorCodigo();
+
+            // Borrar el ciclo formativo utilizando el controlador
             controlador.borrar(cicloFormativo);
+
             System.out.println("Ciclo formativo borrado correctamente.");
         } catch (Exception e) {
             System.out.println("Error al borrar el ciclo formativo: " + e.getMessage());
         }
     }
 
+
     private void mostrarCiclosFormativos() {
-        List<CicloFormativo> ciclosFormativos = controlador.getCiclosFormativos();
-        if (ciclosFormativos.isEmpty()) {
-            System.out.println("No hay ciclos formativos registrados.");
-        } else {
-            ciclosFormativos.sort(Comparator.comparing(CicloFormativo::getCodigo));
-            for (CicloFormativo ciclo : ciclosFormativos) {
-                System.out.println(ciclo);
+        System.out.println("Mostrar Ciclos Formativos");
+        try {
+            List<CicloFormativo> ciclosFormativos = controlador.getCiclosFormativos();
+
+            if (ciclosFormativos.isEmpty()) {
+                System.out.println("No hay ciclos formativos registrados.");
+            } else {
+                ciclosFormativos.sort(Comparator.comparing(CicloFormativo::getCodigo)); // Ordenar por código
+                for (CicloFormativo ciclo : ciclosFormativos) {
+                    System.out.println(ciclo);
+                }
             }
+        } catch (Exception e) {
+            System.out.println("Error al mostrar los ciclos formativos: " + e.getMessage());
         }
     }
+
 
     private void insertarMatricula() {
         System.out.println("Insertar Matrícula");
@@ -411,8 +443,12 @@ public class Vista {
     private void mostrarMatriculasPorCicloFormativo() {
         System.out.println("Mostrar Matrículas por Ciclo Formativo");
         try {
-            CicloFormativo cicloFormativo = Consola.leerCicloFormativo();
+            // Obtener el ciclo formativo por código
+            CicloFormativo cicloFormativo = Consola.getCicloFormativoPorCodigo();
+
+            // Obtener las matrículas asociadas al ciclo formativo desde el controlador
             List<Matricula> matriculas = controlador.getMatriculas(cicloFormativo);
+
             if (matriculas.isEmpty()) {
                 System.out.println("No hay matrículas asociadas al ciclo formativo.");
             } else {
@@ -424,6 +460,7 @@ public class Vista {
             System.out.println("Error al mostrar las matrículas por ciclo formativo: " + e.getMessage());
         }
     }
+
 
     public void mostrarMatriculasPorCursoAcademico() {
         try {
