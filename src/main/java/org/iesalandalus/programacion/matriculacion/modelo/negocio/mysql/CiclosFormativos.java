@@ -50,13 +50,9 @@ public class CiclosFormativos implements ICiclosFormativos {
         }
     }
 
-
-
-
-
     @Override
     public List<CicloFormativo> get() {
-        List<CicloFormativo> ciclosFormativos = new ArrayList<>();
+        List<CicloFormativo> ciclos = new ArrayList<>();
         try {
             System.out.println("Ejecutando consulta SQL para obtener ciclos formativos...");
             String sentenciaStr = "SELECT codigo, familiaProfesional, grado, nombre, horas FROM cicloFormativo ORDER BY nombre";
@@ -79,15 +75,16 @@ public class CiclosFormativos implements ICiclosFormativos {
                     throw new IllegalArgumentException("ERROR: Tipo de grado desconocido.");
                 }
 
-                CicloFormativo cicloFormativo = new CicloFormativo(codigo, familiaProfesional, grado, nombre, horas);
-                ciclosFormativos.add(cicloFormativo);
+                CicloFormativo ciclo = new CicloFormativo(codigo, familiaProfesional, grado, nombre, horas);
+                ciclos.add(ciclo);
             }
         } catch (SQLException e) {
             System.err.println(ERROR + e.getMessage());
         }
-        System.out.println("Número de ciclos formativos obtenidos: " + ciclosFormativos.size());
-        return ciclosFormativos; // Devuelve una lista vacía si ocurre un error
+        System.out.println("Número de ciclos formativos obtenidos: " + ciclos.size());
+        return ciclos; // Devuelve una lista vacía si ocurre un error
     }
+
 
 
 
@@ -148,14 +145,6 @@ public class CiclosFormativos implements ICiclosFormativos {
     }
 
 
-
-
-
-
-
-
-
-
     @Override
     public CicloFormativo buscar(CicloFormativo cicloFormativo) {
         if (cicloFormativo == null) {
@@ -192,8 +181,6 @@ public class CiclosFormativos implements ICiclosFormativos {
         }
         return resultado;
     }
-
-
 
 
     @Override

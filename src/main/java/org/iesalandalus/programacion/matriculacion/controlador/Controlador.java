@@ -100,6 +100,10 @@ public class Controlador {
     }
 
     public List<CicloFormativo> getCiclosFormativos() {
+        List<CicloFormativo> ciclosFormativos = modelo.getCiclosFormativos();
+        if (ciclosFormativos == null) {
+            throw new IllegalStateException("ERROR: La lista de ciclos formativos es nula.");
+        }
         return List.copyOf(modelo.getCiclosFormativos());
     }
 

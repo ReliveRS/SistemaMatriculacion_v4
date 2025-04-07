@@ -313,10 +313,10 @@ public class Vista {
         try {
             List<CicloFormativo> ciclosFormativos = controlador.getCiclosFormativos();
 
-            if (ciclosFormativos.isEmpty()) {
+            if (ciclosFormativos == null || ciclosFormativos.isEmpty()) {
                 System.out.println("No hay ciclos formativos registrados.");
             } else {
-                ciclosFormativos.sort(Comparator.comparing(CicloFormativo::getCodigo)); // Ordenar por código
+                System.out.println("Lista de Ciclos Formativos:");
                 for (CicloFormativo ciclo : ciclosFormativos) {
                     System.out.println(ciclo);
                 }
@@ -325,6 +325,8 @@ public class Vista {
             System.out.println("Error al mostrar los ciclos formativos: " + e.getMessage());
         }
     }
+
+
 
 
     private void insertarMatricula() {

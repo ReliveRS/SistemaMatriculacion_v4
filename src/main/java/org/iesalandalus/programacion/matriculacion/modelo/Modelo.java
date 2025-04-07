@@ -159,8 +159,14 @@ public class Modelo {
     }
 
     public List<CicloFormativo> getCiclosFormativos() {
-        return ciclosFormativos.get();
+        List<CicloFormativo> listaCiclos = ciclosFormativos.get();
+        if (listaCiclos == null) {
+            return new ArrayList<>(); // Devuelve una lista vacía si es nula
+        }
+        return listaCiclos;
     }
+
+
 
 
 
