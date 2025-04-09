@@ -61,6 +61,9 @@ public class CiclosFormativos implements ICiclosFormativos {
             while (filas.next()) {
                 int codigo = filas.getInt("codigo");
                 String familiaProfesional = filas.getString("familiaProfesional");
+                if (familiaProfesional == null || familiaProfesional.trim().isEmpty()) {
+                    familiaProfesional = "Sin definir"; // Valor por defecto para evitar errores
+                }
                 String tipoGrado = filas.getString("grado");
                 String nombre = filas.getString("nombre");
                 int horas = filas.getInt("horas");
@@ -82,7 +85,7 @@ public class CiclosFormativos implements ICiclosFormativos {
             System.err.println(ERROR + e.getMessage());
         }
         System.out.println("Número de ciclos formativos obtenidos: " + ciclos.size());
-        return ciclos; // Devuelve una lista vacía si ocurre un error
+        return ciclos;
     }
 
 
@@ -181,6 +184,7 @@ public class CiclosFormativos implements ICiclosFormativos {
         }
         return resultado;
     }
+
 
 
     @Override

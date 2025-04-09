@@ -13,7 +13,7 @@ import java.util.List;
 public class Matriculas implements IMatriculas {
     private static final String ERROR = "ERROR: ";
     private static Matriculas instancia;
-    private Connection conexion = null;
+    private Connection conexion;
 
     public static Matriculas getInstancia() {
         if (instancia == null) {
@@ -23,7 +23,16 @@ public class Matriculas implements IMatriculas {
     }
     @Override
     public void comenzar() {
-        conexion = MySQL.establecerConexion();
+        try {
+            if (conexion == null || conexion.isClosed()) {
+                conexion = MySQL.establecerConexion();
+                // Configuración adicional recomendada
+                conexion.setAutoCommit(true);
+                conexion.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(ERROR + "No se pudo establecer la conexión: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -33,69 +42,117 @@ public class Matriculas implements IMatriculas {
 
 
     public List<Asignatura> getAsignaturasMatricula(int idMatricula) {
+        verificarConexion();
         List<Asignatura> asignaturas = new ArrayList<>();
-        try {
-            String sentenciaStr = "SELECT a.codigo, a.nombre, a.horasAnuales, a.horasDesdoble, a.curso, a.especialidadProfesorado, a.cicloFormativoCodigo " +
-                    "FROM asignatura a " +
-                    "JOIN matricula_asignatura ma ON a.codigo = ma.codigoAsignatura " +
-                    "WHERE ma.idMatricula=?";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
-            sentencia.setInt(1, idMatricula);
 
-            ResultSet filas = sentencia.executeQuery();
-            while (filas.next()) {
-                String codigo = filas.getString("codigo");
-                String nombre = filas.getString("nombre");
-                int horasAnuales = filas.getInt("horasAnuales");
-                int horasDesdoble = filas.getInt("horasDesdoble");
-                Curso curso = Curso.valueOf(filas.getString("curso"));
-                EspecialidadProfesorado especialidadProfesorado = EspecialidadProfesorado.valueOf(filas.getString("especialidadProfesorado"));
+        String sql = "SELECT a.codigo, a.nombre, a.horasAnuales, a.horasDesdoble, " +
+                "a.curso, a.especialidadProfesorado, " +
+                "cf.codigo AS cicloCodigo, cf.familiaProfesional, cf.grado, " +
+                "cf.nombre AS cicloNombre, cf.horas AS cicloHoras " +
+                "FROM asignatura a " +
+                "JOIN asignaturasMatricula am ON a.codigo = am.codigo " +
+                "JOIN cicloFormativo cf ON a.cicloFormativo = cf.codigo " +  // Cambiado aquí
+                "WHERE am.idMatricula = ?";
 
-                // Obtener el ciclo formativo asociado
-                int codigoCiclo = filas.getInt("cicloFormativoCodigo");
-                CicloFormativo cicloFormativo = CiclosFormativos.getInstancia().buscar(new CicloFormativo(codigoCiclo, "", null, "", 0));
+        try (PreparedStatement ps = conexion.prepareStatement(sql)) {
+            ps.setInt(1, idMatricula);
 
-                // Crear la asignatura con todos los parámetros requeridos
-                Asignatura asignatura = new Asignatura(codigo, nombre, horasAnuales, curso, horasDesdoble, especialidadProfesorado, cicloFormativo);
-                asignaturas.add(asignatura);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Asignatura asignatura = crearAsignaturaDesdeResultSet(rs);
+                    asignaturas.add(asignatura);
+                }
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + e.getMessage());
+            throw new IllegalArgumentException(ERROR + "Error al obtener asignaturas: " + e.getMessage(), e);
         }
         return asignaturas;
     }
+
+    private Asignatura crearAsignaturaDesdeResultSet(ResultSet rs) throws SQLException {
+        String codigo = rs.getString("codigo");
+        String nombre = rs.getString("nombre");
+        int horasAnuales = rs.getInt("horasAnuales");
+        int horasDesdoble = rs.getInt("horasDesdoble");
+        Curso curso = Curso.valueOf(rs.getString("curso").toUpperCase());
+        EspecialidadProfesorado especialidad = EspecialidadProfesorado.valueOf(
+                rs.getString("especialidadProfesorado").toUpperCase());
+
+        CicloFormativo ciclo = crearCicloFormativoDesdeResultSet(rs);
+
+        return new Asignatura(codigo, nombre, horasAnuales, curso, horasDesdoble, especialidad, ciclo);
+    }
+
+    private CicloFormativo crearCicloFormativoDesdeResultSet(ResultSet rs) throws SQLException {
+        int codigo = rs.getInt("cicloCodigo");
+        String familia = rs.getString("familiaProfesional");
+        String tipoGrado = rs.getString("grado");
+        String nombre = rs.getString("cicloNombre");
+        int horas = rs.getInt("cicloHoras");
+
+        Grado grado;
+        if ("gradod".equalsIgnoreCase(tipoGrado)) {
+            grado = new GradoD(nombre, 2, Modalidad.PRESENCIAL);
+        } else {
+            grado = new GradoE(nombre, 1, 5);
+        }
+
+        return new CicloFormativo(codigo, familia, grado, nombre, horas);
+    }
+
 
 
 
     @Override
     public List<Matricula> get() {
+        if (conexion == null) {
+            throw new IllegalStateException("ERROR: La conexión con la base de datos no está inicializada.");
+        }
+
         List<Matricula> matriculas = new ArrayList<>();
         try {
-            String sentenciaStr = "SELECT m.idMatricula, m.cursoAcademico, m.fechaMatriculacion, m.fechaAnulacion, m.dniAlumno " +
+            String sentenciaStr = "SELECT m.idMatricula, m.cursoAcademico, m.fechaMatriculacion, m.fechaAnulacion, " +
+                    "a.dni AS dniAlumno, a.nombre AS nombreAlumno, a.telefono AS telefonoAlumno, a.correo AS correoAlumno " +
                     "FROM matricula m " +
                     "JOIN alumno a ON m.dniAlumno = a.dni " +
                     "ORDER BY m.fechaMatriculacion DESC, a.nombre ASC";
             Statement sentencia = conexion.createStatement();
             ResultSet filas = sentencia.executeQuery(sentenciaStr);
+
             while (filas.next()) {
+                // Recuperar datos de la matrícula
                 int idMatricula = filas.getInt("idMatricula");
                 String cursoAcademico = filas.getString("cursoAcademico");
                 LocalDate fechaMatriculacion = filas.getDate("fechaMatriculacion").toLocalDate();
                 LocalDate fechaAnulacion = filas.getDate("fechaAnulacion") != null ? filas.getDate("fechaAnulacion").toLocalDate() : null;
-                String dniAlumno = filas.getString("dniAlumno");
 
-                Alumno alumno = Alumnos.getInstancia().buscar(new Alumno("", "", "", dniAlumno, LocalDate.now()));
+                // Recuperar datos del alumno
+                String dniAlumno = filas.getString("dniAlumno");
+                String nombreAlumno = filas.getString("nombreAlumno");
+                String telefonoAlumno = filas.getString("telefonoAlumno");
+                String correoAlumno = filas.getString("correoAlumno");
+
+                Alumno alumno = new Alumno(nombreAlumno, telefonoAlumno, correoAlumno, dniAlumno, LocalDate.now());
+
+                // Recuperar asignaturas asociadas
                 List<Asignatura> asignaturas = getAsignaturasMatricula(idMatricula);
 
+                // Crear el objeto Matricula y añadirlo a la lista
                 Matricula matricula = new Matricula(idMatricula, cursoAcademico, fechaMatriculacion, alumno, asignaturas);
                 matricula.setFechaAnulacion(fechaAnulacion);
                 matriculas.add(matricula);
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + e.getMessage());
+            throw new IllegalArgumentException(ERROR + "Error al obtener las matrículas: " + e.getMessage(), e);
         }
+
+        if (matriculas.isEmpty()) {
+            System.out.println("No hay matrículas registradas.");
+        }
+
         return matriculas;
     }
+
 
 
     @Override
@@ -114,23 +171,46 @@ public class Matriculas implements IMatriculas {
         return tamano;
     }
 
-    public void insertarAsignaturasMatricula(int idMatricula, List<Asignatura> asignaturas) throws OperationNotSupportedException {
+    public void insertarAsignaturasMatricula(int idMatricula, List<Asignatura> asignaturas)
+            throws OperationNotSupportedException {
+        verificarConexion();
         if (asignaturas == null || asignaturas.isEmpty()) {
             throw new IllegalArgumentException("ERROR: La lista de asignaturas no puede ser nula o vacía.");
         }
-        try {
-            String sentenciaStr = "INSERT INTO matricula_asignatura (idMatricula, codigoAsignatura) VALUES (?, ?)";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
+
+        String sentenciaStr = "INSERT INTO asignaturasMatricula (idMatricula, codigo) VALUES (?, ?)";
+
+        try (PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr)) {
+            conexion.setAutoCommit(false); // Desactivar autocommit para transacción
 
             for (Asignatura asignatura : asignaturas) {
                 sentencia.setInt(1, idMatricula);
                 sentencia.setString(2, asignatura.getCodigo());
-                sentencia.executeUpdate();
+                sentencia.addBatch();
             }
+
+            sentencia.executeBatch();
+            conexion.commit(); // Confirmar transacción
         } catch (SQLIntegrityConstraintViolationException e) {
-            throw new OperationNotSupportedException("ERROR: Ya existe una relación entre la matrícula y alguna de las asignaturas.");
+            try {
+                conexion.rollback();
+            } catch (SQLException ex) {
+                throw new OperationNotSupportedException(ERROR + "Error al hacer rollback: " + ex.getMessage());
+            }
+            throw new OperationNotSupportedException("ERROR: Ya existe una relación entre la matrícula y alguna asignatura.");
         } catch (SQLException e) {
-            throw new OperationNotSupportedException(ERROR + e.getMessage());
+            try {
+                conexion.rollback();
+            } catch (SQLException ex) {
+                throw new OperationNotSupportedException(ERROR + "Error al hacer rollback: " + ex.getMessage());
+            }
+            throw new OperationNotSupportedException(ERROR + "Error al insertar asignaturas: " + e.getMessage());
+        } finally {
+            try {
+                conexion.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new OperationNotSupportedException(ERROR + "Error al restaurar autocommit: " + e.getMessage());
+            }
         }
     }
 
@@ -139,16 +219,30 @@ public class Matriculas implements IMatriculas {
         if (matricula == null) {
             throw new NullPointerException("ERROR: No se puede insertar una matrícula nula.");
         }
-        if (buscar(matricula) != null) {
-            throw new OperationNotSupportedException("ERROR: Ya existe una matrícula con ese ID.");
+
+        // Verificar si la matrícula ya existe en la base de datos
+        try {
+            String consultaStr = "SELECT COUNT(*) FROM matricula WHERE idMatricula=?";
+            PreparedStatement consulta = conexion.prepareStatement(consultaStr);
+            consulta.setInt(1, matricula.getIdMatricula());
+            ResultSet resultado = consulta.executeQuery();
+
+            if (resultado.next() && resultado.getInt(1) > 0) {
+                throw new OperationNotSupportedException("ERROR: Ya existe una matrícula con ese ID.");
+            }
+        } catch (SQLException e) {
+            throw new OperationNotSupportedException(ERROR + "Error al verificar la existencia de la matrícula: " + e.getMessage());
         }
+
+        // Insertar la matrícula si no existe
         try {
             // Desactivar el autocommit para iniciar una transacción
             conexion.setAutoCommit(false);
 
             // Inserción de la matrícula
-            String sentenciaStr = "INSERT INTO matricula (idMatricula, cursoAcademico, fechaMatriculacion, fechaAnulacion, dniAlumno) VALUES (?, ?, ?, ?, ?)";
+            String sentenciaStr = "INSERT INTO matricula (idMatricula, cursoAcademico, fechaMatriculacion, fechaAnulacion, dni) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
+
             sentencia.setInt(1, matricula.getIdMatricula());
             sentencia.setString(2, matricula.getCursoAcademico());
             sentencia.setDate(3, Date.valueOf(matricula.getFechaMatriculacion()));
@@ -171,16 +265,16 @@ public class Matriculas implements IMatriculas {
             try {
                 // Revertir los cambios si ocurre un error
                 conexion.rollback();
+                throw new OperationNotSupportedException("ERROR al insertar matrícula: " + e.getMessage());
             } catch (SQLException rollbackEx) {
-                throw new OperationNotSupportedException(ERROR + rollbackEx.getMessage());
+                throw new OperationNotSupportedException("ERROR al revertir los cambios: " + rollbackEx.getMessage());
             }
-            throw new OperationNotSupportedException(ERROR + e.getMessage());
         } finally {
             try {
-                // Restaurar el modo de autocommit
+                // Restaurar el modo autocommit
                 conexion.setAutoCommit(true);
             } catch (SQLException autoCommitEx) {
-                throw new OperationNotSupportedException(ERROR + autoCommitEx.getMessage());
+                throw new OperationNotSupportedException("ERROR al restaurar autocommit: " + autoCommitEx.getMessage());
             }
         }
     }
@@ -189,37 +283,52 @@ public class Matriculas implements IMatriculas {
 
     @Override
     public Matricula buscar(Matricula matricula) {
+        verificarConexion();
         if (matricula == null) {
-            throw new IllegalArgumentException("ERROR: No se puede buscar una matrícula nula.");
+            throw new IllegalArgumentException(ERROR + "No se puede buscar una matrícula nula");
         }
-        Matricula resultado = null;
-        try {
-            String sentenciaStr = "SELECT idMatricula, cursoAcademico, fechaMatriculacion, fechaAnulacion, dniAlumno FROM matricula WHERE idMatricula=?";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
-            sentencia.setInt(1, matricula.getIdMatricula());
 
-            ResultSet filas = sentencia.executeQuery();
-            if (filas.next()) {
-                int idMatricula = filas.getInt("idMatricula");
-                String cursoAcademico = filas.getString("cursoAcademico");
-                LocalDate fechaMatriculacion = filas.getDate("fechaMatriculacion").toLocalDate();
-                LocalDate fechaAnulacion = filas.getDate("fechaAnulacion") != null ? filas.getDate("fechaAnulacion").toLocalDate() : null;
-                String dniAlumno = filas.getString("dniAlumno");
+        String sql = "SELECT m.*, a.nombre, a.telefono, a.correo, a.dni, a.fechaNacimiento " +
+                "FROM matricula m JOIN alumno a ON m.dni = a.dni " +
+                "WHERE m.idMatricula = ?";
 
-                // Buscar el alumno utilizando la clase Alumnos
-                Alumno alumno = Alumnos.getInstancia().buscar(new Alumno("", "", "", dniAlumno, LocalDate.now()));
+        try (PreparedStatement ps = conexion.prepareStatement(sql)) {
+            ps.setInt(1, matricula.getIdMatricula());
 
-                // Crear una lista vacía de asignaturas (puedes cargar las asignaturas asociadas si es necesario)
-                List<Asignatura> asignaturas = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Alumno alumno = new Alumno(
+                            rs.getString("nombre"),
+                            rs.getString("telefono"),
+                            rs.getString("correo"),
+                            rs.getString("dni"),
+                            rs.getDate("fechaNacimiento").toLocalDate()
+                    );
 
-                resultado = new Matricula(idMatricula, cursoAcademico, fechaMatriculacion, alumno, asignaturas);
-                resultado.setFechaAnulacion(fechaAnulacion);
+                    List<Asignatura> asignaturas = getAsignaturasMatricula(rs.getInt("idMatricula"));
+
+                    Matricula resultado = new Matricula(
+                            rs.getInt("idMatricula"),
+                            rs.getString("cursoAcademico"),
+                            rs.getDate("fechaMatriculacion").toLocalDate(),
+                            alumno,
+                            asignaturas
+                    );
+
+                    if (rs.getDate("fechaAnulacion") != null) {
+                        resultado.setFechaAnulacion(rs.getDate("fechaAnulacion").toLocalDate());
+                    }
+
+                    return resultado;
+                }
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + e.getMessage());
+            throw new IllegalArgumentException(ERROR + "Error al buscar matrícula: " + e.getMessage(), e);
         }
-        return resultado;
+        return null;
     }
+
+
 
     @Override
     public void borrar(Matricula matricula) throws OperationNotSupportedException {
@@ -283,44 +392,61 @@ public class Matriculas implements IMatriculas {
 
     @Override
     public List<Matricula> get(CicloFormativo cicloFormativo) {
+        verificarConexion();
         if (cicloFormativo == null) {
-            throw new IllegalArgumentException("ERROR: No se puede buscar matrículas para un ciclo formativo nulo.");
+            throw new IllegalArgumentException(ERROR + "Ciclo formativo no puede ser nulo");
         }
 
-        List<Matricula> matriculasCiclo = new ArrayList<>();
-        try {
-            // Consulta para obtener las matrículas relacionadas con el ciclo formativo
-            String sentenciaStr = "SELECT DISTINCT m.idMatricula, m.cursoAcademico, m.fechaMatriculacion, m.fechaAnulacion, m.dniAlumno " +
-                    "FROM matricula m " +
-                    "JOIN matricula_asignatura ma ON m.idMatricula = ma.idMatricula " +
-                    "JOIN asignatura a ON ma.codigoAsignatura = a.codigo " +
-                    "WHERE a.cicloFormativoCodigo = ?";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
-            sentencia.setInt(1, cicloFormativo.getCodigo());
+        List<Matricula> matriculas = new ArrayList<>();
+        String sql = "SELECT DISTINCT m.*, a.* FROM matricula m " +
+                "JOIN asignaturasMatricula am ON m.idMatricula = am.idMatricula " +
+                "JOIN asignatura asig ON am.codigo = asig.codigo " +
+                "JOIN alumno a ON m.dni = a.dni " +
+                "WHERE asig.cicloFormativoCodigo = ?";
 
-            ResultSet filas = sentencia.executeQuery();
-            while (filas.next()) {
-                int idMatricula = filas.getInt("idMatricula");
-                String cursoAcademico = filas.getString("cursoAcademico");
-                LocalDate fechaMatriculacion = filas.getDate("fechaMatriculacion").toLocalDate();
-                LocalDate fechaAnulacion = filas.getDate("fechaAnulacion") != null ? filas.getDate("fechaAnulacion").toLocalDate() : null;
-                String dniAlumno = filas.getString("dniAlumno");
+        try (PreparedStatement ps = conexion.prepareStatement(sql)) {
+            ps.setInt(1, cicloFormativo.getCodigo());
 
-                // Buscar el alumno utilizando la clase Alumnos
-                Alumno alumno = Alumnos.getInstancia().buscar(new Alumno("", "", "", dniAlumno, LocalDate.now()));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Alumno alumno = new Alumno(
+                            rs.getString("nombre"),
+                            rs.getString("telefono"),
+                            rs.getString("correo"),
+                            rs.getString("dni"),
+                            rs.getDate("fechaNacimiento").toLocalDate()
+                    );
 
-                // Crear una lista vacía de asignaturas (puedes cargar las asignaturas asociadas si es necesario)
-                List<Asignatura> asignaturas = new ArrayList<>();
+                    List<Asignatura> asignaturas = getAsignaturasMatricula(rs.getInt("idMatricula"));
 
-                // Crear la matrícula y añadirla a la lista
-                Matricula matricula = new Matricula(idMatricula, cursoAcademico, fechaMatriculacion, alumno, asignaturas);
-                matricula.setFechaAnulacion(fechaAnulacion);
-                matriculasCiclo.add(matricula);
+                    Matricula matricula = new Matricula(
+                            rs.getInt("idMatricula"),
+                            rs.getString("cursoAcademico"),
+                            rs.getDate("fechaMatriculacion").toLocalDate(),
+                            alumno,
+                            asignaturas
+                    );
+
+                    if (rs.getDate("fechaAnulacion") != null) {
+                        matricula.setFechaAnulacion(rs.getDate("fechaAnulacion").toLocalDate());
+                    }
+
+                    matriculas.add(matricula);
+                }
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + e.toString());
+            throw new IllegalArgumentException(ERROR + "Error al obtener matrículas por ciclo", e);
         }
-        return matriculasCiclo;
+        return matriculas;
     }
-
+    private void verificarConexion() {
+        try {
+            if (conexion == null || conexion.isClosed() || !conexion.isValid(2)) {
+                terminar();
+                comenzar();
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(ERROR + "Error al verificar conexión: " + e.getMessage(), e);
+        }
+    }
 }

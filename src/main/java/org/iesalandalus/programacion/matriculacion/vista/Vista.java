@@ -215,7 +215,7 @@ public class Vista {
         try {
             System.out.print("Introduce el código de la asignatura: ");
             String codigo = Entrada.cadena();
-            Asignatura asignatura = controlador.buscar(new Asignatura(codigo, "", 0, null, 0, null, null));
+            Asignatura asignatura = controlador.buscar(new Asignatura(codigo, "NombreFicticio", 150, Curso.PRIMERO, 3, EspecialidadProfesorado.FOL, null));
             if (asignatura != null) {
                 System.out.println("Asignatura encontrada: " + asignatura);
             } else {
@@ -244,17 +244,31 @@ public class Vista {
     }
 
     private void mostrarAsignaturas() {
-        List<Asignatura> asignaturas = controlador.getAsignaturas();
-        if (asignaturas.isEmpty()) {
-            System.out.println("No hay asignaturas registradas.");
-        } else {
-            asignaturas.sort(Comparator.comparing(Asignatura::getCodigo));
-            System.out.println("Lista de asignaturas:");
-            for (Asignatura asignatura : asignaturas) {
-                System.out.println(asignatura);
+        System.out.println("Mostrar Asignaturas");
+        try {
+            // Obtener la lista de asignaturas desde el controlador
+            List<Asignatura> asignaturas = controlador.getAsignaturas();
+
+            // Validar si la lista es nula o está vacía
+            if (asignaturas == null || asignaturas.isEmpty()) {
+                System.out.println("No hay asignaturas registradas.");
+            } else {
+                // Ordenar las asignaturas por su código
+                asignaturas.sort(Comparator.comparing(Asignatura::getCodigo));
+
+                // Imprimir las asignaturas
+                System.out.println("Lista de Asignaturas:");
+                for (Asignatura asignatura : asignaturas) {
+                    System.out.println(asignatura);
+                }
             }
+        } catch (Exception e) {
+            // Manejar cualquier excepción inesperada
+            System.err.println("Error al mostrar las asignaturas: " + e.getMessage());
         }
     }
+
+
 
     private void insertarCicloFormativo() {
         System.out.println("Insertar Ciclo Formativo");
@@ -329,10 +343,25 @@ public class Vista {
 
 
 
-    private void insertarMatricula() {
+    public void insertarMatricula() {
         System.out.println("Insertar Matrícula");
-
+        Alumno alumno = null;
         try {
+            //     public Matricula(
+            //     int idMatricula,
+            //     String cursoAcademico,
+            //     LocalDate fechaMatriculacion,
+            //     Alumno alumno,
+            //     List<Asignatura> coleccionAsignaturas) {
+            //1º Solicitar ID matricula     no esta en consola
+            //2º Solicitar curso academico  no esta en consola
+            //3º Solicitar fecha matricula Consola.leerFecha
+            //4º Solicitar alumno           Consola.leerAlumno  o
+            //      Estaria bien mostrar los alumnos disponibles y seleccionarlos o pedir que se inserten nuevos
+            //5º Solicitar asignaturas
+            //      Mostrar las asignaturas disponibles y seleccionarlas o pedir que se inserten nuevas
+
+
             // Solicitar el identificador de la matrícula
             System.out.print("Introduce el identificador de la matrícula: ");
             int idMatricula = Entrada.entero();
@@ -341,24 +370,54 @@ public class Vista {
             }
 
             // Solicitar el curso académico
-            System.out.print("Introduce el curso académico (ej. 2023-2024): ");
+            System.out.print("Introduce el curso academico (ej.23-24): ");
             String cursoAcademico = Entrada.cadena().trim();
-            if (cursoAcademico.isEmpty() || !cursoAcademico.matches("\\d{4}-\\d{4}")) {
-                throw new IllegalArgumentException("El curso académico debe tener el formato 'YYYY-YYYY'.");
+            if (cursoAcademico.isEmpty() || !cursoAcademico.matches("\\d{2}-\\d{2}")) {
+                throw new IllegalArgumentException("El curso académico debe tener el formato 'YY-YY'.");
             }
 
             // Solicitar la fecha de matriculación
-            System.out.print("Introduce la fecha de matriculación (YYYY-MM-DD): ");
-            LocalDate fechaMatriculacion;
-            try {
-                fechaMatriculacion = LocalDate.parse(Entrada.cadena().trim());
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Formato de fecha inválido. Debe ser 'YYYY-MM-DD'.");
-            }
+            System.out.print("Introduce la fecha de matriculación: ");
+            LocalDate fechaMatriculacion = Consola.leerFecha();
+
 
             // Solicitar los datos del alumno
             System.out.println("Introduce los datos del alumno:");
-            Alumno alumno = Consola.leerAlumno();
+
+            // Obtener la lista de alumnos
+            List<Alumno> alumnos = controlador.getAlumnos();
+            if (alumnos.isEmpty()) {
+                System.out.println("No hay Alumnos registrados. Debes crear uno nuevo.");
+                alumno = Consola.leerAlumno();
+                controlador.insertar(alumno);
+                System.out.println("Alumno creado correctamente.");
+            } else {
+                // Mostrar la lista de Alumnos
+                System.out.println("Selecciona un Alumno:");
+                for (int i = 0; i < alumnos.size(); i++) {
+                    System.out.println((i + 1) + ". " + alumnos.get(i));
+                }
+                // Pedir al usuario que seleccione un Alumno
+                System.out.print("Introduce el número del Alumno (o 0 para crear uno nuevo): ");
+                int indice;
+                try {
+                    indice = Integer.parseInt(Entrada.cadena()) - 1;
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Entrada no válida. Debes ingresar un número.");
+                }
+
+                if (indice == -1) {
+                    alumno = Consola.leerAlumno();
+                    controlador.insertar(alumno);
+                    System.out.println("Alumno creado correctamente.");
+                } else if (indice < 0 || indice >= alumnos.size()) {
+                    throw new IllegalArgumentException("Índice no válido.");
+                } else {
+                    alumno = alumnos.get(indice);
+                }
+            }
+
+
 
             List<Asignatura> asignaturasDisponibles = controlador.getAsignaturas();
 
@@ -378,13 +437,12 @@ public class Vista {
             System.out.println("Error al insertar la matrícula: " + e.getMessage());
         }
     }
-
-    private void buscarMatricula() {
+    public void buscarMatricula() {
         System.out.println("Buscar Matrícula");
+        Matricula matricula = null;
         try {
-            System.out.print("Introduce el identificador de la matrícula:");
-            int idMatricula = Entrada.entero();
-            Matricula matricula = controlador.buscar(new Matricula(idMatricula, null, null, null, null));
+            matricula = Consola.getMatriculaPorIdentificador();
+            matricula = controlador.buscar(matricula);
             if (matricula != null) {
                 System.out.println("Matrícula encontrada: " + matricula);
             } else {
@@ -395,13 +453,12 @@ public class Vista {
         }
     }
 
-    private void anularMatricula() {
+    public void anularMatricula() {
         System.out.println("Anular Matrícula");
+        Matricula matricula = null;
         try {
-            System.out.print("Introduce el identificador de la matrícula:");
-            int idMatricula = Entrada.entero();
-            Matricula matricula = controlador.buscar(new Matricula(idMatricula, null, null, null, null));
-
+            matricula = Consola.getMatriculaPorIdentificador();
+            matricula = controlador.buscar(matricula);
             if (matricula != null) {
                 controlador.borrar(matricula);
                 System.out.println("Matrícula anulada correctamente.");
@@ -413,7 +470,7 @@ public class Vista {
         }
     }
 
-    private void mostrarMatriculas() {
+    public void mostrarMatriculas() {
         List<Matricula> matriculas = controlador.getMatriculas();
         if (matriculas.isEmpty()) {
             System.out.println("No hay matrículas registradas.");
@@ -425,14 +482,23 @@ public class Vista {
         }
     }
 
-    private void mostrarMatriculasPorAlumno() {
+    public void mostrarMatriculasPorAlumno() {
         System.out.println("Mostrar Matrículas por Alumno");
         try {
-            Alumno alumno = Consola.leerAlumno();
+            String dni = Consola.getDniAlumno();
+            Alumno alumno = controlador.buscar(new Alumno("Nombre Ficticio", "600112255", "correo@ficticio.com", dni, LocalDate.now().minusYears(16).minusDays(1))) ;// Buscar por DNI
+            if (alumno != null) {
+                System.out.println("Alumno encontrado: ");
+            } else {
+                System.out.println("No se encontró un alumno con el DNI proporcionado.");
+            }
+
+            // Obtener las matrículas del alumno
             List<Matricula> matriculas = controlador.getMatriculas(alumno);
             if (matriculas.isEmpty()) {
-                System.out.println("No hay matrículas asociadas al alumno.");
+                System.out.println("No hay matrículas asociadas al alumno " + alumno.getNombre() + ".");
             } else {
+                System.out.println("Matrículas del alumno " + alumno.getNombre() + ":");
                 for (Matricula matricula : matriculas) {
                     System.out.println(matricula);
                 }
@@ -442,55 +508,63 @@ public class Vista {
         }
     }
 
-    private void mostrarMatriculasPorCicloFormativo() {
+    public void mostrarMatriculasPorCicloFormativo() {
         System.out.println("Mostrar Matrículas por Ciclo Formativo");
         try {
-            // Obtener el ciclo formativo por código
-            CicloFormativo cicloFormativo = Consola.getCicloFormativoPorCodigo();
+            // Solicitar el código del ciclo formativo
+            System.out.print("Introduce el código del ciclo formativo: ");
+            int codigo = Entrada.entero();
 
-            // Obtener las matrículas asociadas al ciclo formativo desde el controlador
+            // Buscar el ciclo formativo por código
+            CicloFormativo cicloFormativo = controlador.buscar(new CicloFormativo(codigo, "Familia Ficticia", new GradoD("Grado Ficticio", 2, Modalidad.PRESENCIAL), "Nombre Ficticio", 1000));
+            if (cicloFormativo == null) {
+                System.out.println("No se encontró un ciclo formativo con el código proporcionado.");
+                return; // Salir del método si no se encuentra el ciclo formativo
+            }
+
+            // Mostrar mensaje de ciclo formativo encontrado
+            System.out.println("Ciclo formativo encontrado: " + cicloFormativo.getNombre());
+
+            // Obtener las matrículas del ciclo formativo
             List<Matricula> matriculas = controlador.getMatriculas(cicloFormativo);
-
             if (matriculas.isEmpty()) {
-                System.out.println("No hay matrículas asociadas al ciclo formativo.");
+                System.out.println("No hay matrículas asociadas al ciclo formativo " + cicloFormativo.getNombre() + ".");
             } else {
+                System.out.println("Matrículas del ciclo formativo " + cicloFormativo.getNombre() + ":");
                 for (Matricula matricula : matriculas) {
                     System.out.println(matricula);
                 }
             }
         } catch (Exception e) {
-            System.out.println("Error al mostrar las matrículas por ciclo formativo: " + e.getMessage());
+            System.out.println("Error: " + e.getMessage());
         }
     }
 
-
     public void mostrarMatriculasPorCursoAcademico() {
+        System.out.println("Mostrar Matrículas por Curso Académico");
         try {
-            // Solicitar el curso académico al usuario
-            System.out.print("Introduce el curso académico (ej. 2023-2024): ");
+            // Solicitar el curso académico
+            System.out.print("Introduce el curso académico (ej. 23-24): ");
             String cursoAcademico = Entrada.cadena().trim();
 
             // Validar el formato del curso académico
-            if (cursoAcademico.isEmpty() || !cursoAcademico.matches("\\d{4}-\\d{4}")) {
-                throw new IllegalArgumentException("El curso académico debe tener el formato 'YYYY-YYYY'.");
+            if (!cursoAcademico.matches("\\d{2}-\\d{2}")) {
+                System.out.println("El curso académico debe tener el formato 'YY-YY'.");
+                return; // Salir del método si el formato no es válido
             }
 
-            // Obtener las matrículas del curso académico desde el controlador
+            // Obtener las matrículas del curso académico
             List<Matricula> matriculas = controlador.getMatriculas(cursoAcademico);
-
-            // Mostrar las matrículas
             if (matriculas.isEmpty()) {
-                System.out.println("No se encontraron matrículas para el curso académico " + cursoAcademico + ".");
+                System.out.println("No hay matrículas asociadas al curso académico " + cursoAcademico + ".");
             } else {
-                System.out.println("Matrículas para el curso académico " + cursoAcademico + ":");
+                System.out.println("Matrículas del curso académico " + cursoAcademico + ":");
                 for (Matricula matricula : matriculas) {
-                    System.out.println(matricula); // Suponiendo que Matricula tiene un método toString() implementado
+                    System.out.println(matricula);
                 }
             }
-        } catch (IllegalArgumentException e) {
-            System.out.println("Error: " + e.getMessage());
         } catch (Exception e) {
-            System.out.println("Error al mostrar las matrículas: " + e.getMessage());
+            System.out.println("Error: " + e.getMessage());
         }
     }
 

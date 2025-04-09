@@ -132,7 +132,11 @@ public class Modelo {
     }
 
     public List<Asignatura> getAsignaturas() {
-        return asignaturas.get();
+        List<Asignatura> listaAsignaturas = asignaturas.get();
+        if (listaAsignaturas == null) {
+            return new ArrayList<>(); // Devuelve una lista vacía si es nula
+        }
+        return listaAsignaturas;
     }
 
 
@@ -190,7 +194,7 @@ public class Modelo {
         }
 
         // Insertar la matrícula en el sistema
-        matriculas.insertar(new Matricula(matricula));
+        matriculas.insertar(matricula);
     }
 
 

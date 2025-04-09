@@ -75,8 +75,14 @@ public class Controlador {
     }
 
     public List<Asignatura> getAsignaturas() {
-        return List.copyOf(modelo.getAsignaturas());
+        try {
+            return modelo.getAsignaturas(); // Llama al modelo para obtener las asignaturas
+        } catch (Exception e) {
+            System.err.println("Error al obtener las asignaturas: " + e.getMessage());
+            return null; // Devuelve null si ocurre un error
+        }
     }
+
 
     public void insertar(CicloFormativo cicloFormativo) throws OperationNotSupportedException {
         if (cicloFormativo == null) {
@@ -129,14 +135,19 @@ public class Controlador {
     }
 
     public List<Matricula> getMatriculas() {
-        return List.copyOf(modelo.getMatriculas());
+        try {
+            return modelo.getMatriculas(); // Llama al modelo para obtener las asignaturas
+        } catch (Exception e) {
+            System.err.println("Error al obtener las asignaturas: " + e.getMessage());
+            return null; // Devuelve null si ocurre un error
+        }
     }
 
     public List<Matricula> getMatriculas(Alumno alumno) {
         if (alumno == null) {
             throw new IllegalArgumentException("ERROR: El alumno no puede ser nulo.");
         }
-        return List.copyOf(modelo.getMatriculas(alumno));
+        return modelo.getMatriculas(alumno);
     }
 
     public List<Matricula> getMatriculas(CicloFormativo cicloFormativo) {

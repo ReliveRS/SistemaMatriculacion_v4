@@ -76,9 +76,8 @@ public class Matricula {
         if (fechaMatriculacion == null) {
             throw new IllegalArgumentException("La fecha de matriculación no puede ser nula.");
         }
-        LocalDate fechaLimite = LocalDate.now().minusDays(MAXIMO_DIAS_ANTERIOR_MATRICULA);
-        if (fechaMatriculacion.isAfter(fechaLimite)) {
-            throw new IllegalArgumentException("La matrícula no puede registrarse con más de " + MAXIMO_DIAS_ANTERIOR_MATRICULA + " días de retraso.");
+        if (fechaMatriculacion.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("La fecha de matriculación no puede ser futura.");
         }
         this.fechaMatriculacion = fechaMatriculacion;
     }
@@ -86,11 +85,16 @@ public class Matricula {
     public LocalDate getFechaAnulacion() {
         return fechaAnulacion;
     }
+
     public void setFechaAnulacion(LocalDate fechaAnulacion) {
         if (fechaAnulacion != null) {
-            LocalDate fechaLimiteAnulacion = fechaMatriculacion.plusMonths(MAXIMO_MESES_ANTERIOR_ANULACION);
-            if (fechaAnulacion.isAfter(fechaLimiteAnulacion)) {
-                throw new IllegalArgumentException("La fecha de anulación no puede superar los 6 meses desde la matrícula.");
+            if (fechaAnulacion.isBefore(fechaMatriculacion)) {
+                throw new IllegalArgumentException("La fecha de anulación no puede ser anterior a la matriculación.");
+            }
+            LocalDate fechaLimite = fechaMatriculacion.plusMonths(MAXIMO_MESES_ANTERIOR_ANULACION);
+            if (fechaAnulacion.isAfter(fechaLimite)) {
+                throw new IllegalArgumentException("La anulación no puede realizarse después de " +
+                        MAXIMO_MESES_ANTERIOR_ANULACION + " meses de la matriculación.");
             }
         }
         this.fechaAnulacion = fechaAnulacion;

@@ -52,40 +52,64 @@ public class Asignaturas implements IAsignaturas {
         if (especialidad == null || especialidad.trim().isEmpty()) {
             throw new IllegalArgumentException("ERROR: La especialidad no puede ser nula ni vacía.");
         }
-        try {
-            return EspecialidadProfesorado.valueOf(especialidad.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("ERROR: La especialidad proporcionada no es válida.");
+        // Mapeo manual entre los valores posibles de la base de datos y el ENUM
+        switch (especialidad.toUpperCase()) {
+            case "INFORMATICA":
+                return EspecialidadProfesorado.INFORMATICA;
+            case "SISTEMAS":
+                return EspecialidadProfesorado.SISTEMAS;
+            case "FOL":
+                return EspecialidadProfesorado.FOL;
+            default:
+                throw new IllegalArgumentException("ERROR: La especialidad proporcionada no es válida: " + especialidad);
         }
     }
+
+
 
     @Override
     public List<Asignatura> get() {
         List<Asignatura> asignaturas = new ArrayList<>();
         try {
-            String sentenciaStr = "SELECT codigo, nombre, horasAnuales, horasDesdoble, curso, especialidadProfesorado, cicloFormativoCodigo FROM asignatura ORDER BY nombre";
+            String sentenciaStr = "SELECT codigo, nombre, horasAnuales, horasDesdoble, curso, especialidadProfesorado, cicloFormativo FROM asignatura ORDER BY nombre";
             Statement sentencia = conexion.createStatement();
             ResultSet filas = sentencia.executeQuery(sentenciaStr);
             while (filas.next()) {
-                String codigo = filas.getString("codigo");
-                String nombre = filas.getString("nombre");
-                int horasAnuales = filas.getInt("horasAnuales");
-                int horasDesdoble = filas.getInt("horasDesdoble");
-                Curso curso = getCurso(filas.getString("curso"));
-                EspecialidadProfesorado especialidad = getEspecialidadProfesorado(filas.getString("especialidadProfesorado"));
+                try {
+                    // Recuperar datos de la asignatura
+                    String codigo = filas.getString("codigo");
+                    String nombre = filas.getString("nombre");
+                    int horasAnuales = filas.getInt("horasAnuales");
+                    int horasDesdoble = filas.getInt("horasDesdoble");
+                    Curso curso = getCurso(filas.getString("curso"));
+                    EspecialidadProfesorado especialidad = getEspecialidadProfesorado(filas.getString("especialidadProfesorado"));
 
-                // Buscar el ciclo formativo asociado a esta asignatura
-                int codigoCiclo = filas.getInt("cicloFormativoCodigo");
-                CicloFormativo cicloFormativo = CiclosFormativos.getInstancia().buscar(new CicloFormativo(codigoCiclo, "", null, "", 0));
+                    // Buscar el ciclo formativo asociado a esta asignatura
+                    int codigoCiclo = filas.getInt("cicloFormativo");
+                    CicloFormativo cicloFormativo = CiclosFormativos.getInstancia().buscar(new CicloFormativo(codigoCiclo, "Familia profesional", new GradoD("Grado ficticio", 2, Modalidad.PRESENCIAL), "Nombre ficticio", 100));
 
-                Asignatura asignatura = new Asignatura(codigo, nombre, horasAnuales, curso, horasDesdoble, especialidad, cicloFormativo);
-                asignaturas.add(asignatura);
+                    if (cicloFormativo == null) {
+                        throw new IllegalArgumentException("ERROR: No se encontró un ciclo formativo con el código proporcionado.");
+                    }
+
+                    // Crear objeto Asignatura y añadirlo a la lista
+                    Asignatura asignatura = new Asignatura(codigo, nombre, horasAnuales, curso, horasDesdoble, especialidad, cicloFormativo);
+                    asignaturas.add(asignatura);
+                } catch (IllegalArgumentException e) {
+                    System.err.println("ERROR al procesar una asignatura: " + e.getMessage());
+                }
             }
         } catch (SQLException e) {
             throw new IllegalArgumentException(ERROR + e.getMessage());
         }
         return asignaturas;
     }
+
+
+
+
+
+
 
     @Override
     public int getTamano() {
@@ -112,7 +136,7 @@ public class Asignaturas implements IAsignaturas {
             throw new OperationNotSupportedException("ERROR: Ya existe una asignatura con ese código.");
         }
         try {
-            String sentenciaStr = "INSERT INTO asignatura (codigo, nombre, horasAnuales, horasDesdoble, curso, especialidadProfesorado, cicloFormativoCodigo) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            String sentenciaStr = "INSERT INTO asignatura (codigo, nombre, horasAnuales, horasDesdoble, curso, especialidadProfesorado, cicloFormativo) VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
             sentencia.setString(1, asignatura.getCodigo());
             sentencia.setString(2, asignatura.getNombre());
@@ -132,6 +156,7 @@ public class Asignaturas implements IAsignaturas {
         }
     }
 
+
     @Override
     public Asignatura buscar(Asignatura asignatura) {
         if (asignatura == null) {
@@ -139,7 +164,7 @@ public class Asignaturas implements IAsignaturas {
         }
         Asignatura resultado = null;
         try {
-            String sentenciaStr = "SELECT codigo, nombre, horasAnuales, horasDesdoble, curso, especialidadProfesorado, cicloFormativoCodigo FROM asignatura WHERE codigo=?";
+            String sentenciaStr = "SELECT codigo, nombre, horasAnuales, horasDesdoble, curso, especialidadProfesorado, cicloFormativo FROM asignatura WHERE codigo=?";
             PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
             sentencia.setString(1, asignatura.getCodigo());
 
@@ -153,8 +178,33 @@ public class Asignaturas implements IAsignaturas {
                 EspecialidadProfesorado especialidad = getEspecialidadProfesorado(filas.getString("especialidadProfesorado"));
 
                 // Buscar el ciclo formativo asociado a esta asignatura
-                int codigoCiclo = filas.getInt("cicloFormativoCodigo");
-                CicloFormativo cicloFormativo = CiclosFormativos.getInstancia().buscar(new CicloFormativo(codigoCiclo, "", null, "", 0));
+                int codigoCiclo = filas.getInt("cicloFormativo");
+
+                String sentenciaCiclo = "SELECT codigo, familiaProfesional, grado, nombre, horas FROM cicloFormativo WHERE codigo=?";
+                PreparedStatement sentenciaCicloStmt = conexion.prepareStatement(sentenciaCiclo);
+                sentenciaCicloStmt.setInt(1, codigoCiclo);
+                ResultSet cicloFilas = sentenciaCicloStmt.executeQuery();
+
+                CicloFormativo cicloFormativo;
+                if (cicloFilas.next()) {
+                    String familiaProfesional = cicloFilas.getString("familiaProfesional");
+                    String tipoGrado = cicloFilas.getString("grado");
+                    String nombreCiclo = cicloFilas.getString("nombre");
+                    int horas = cicloFilas.getInt("horas");
+
+                    Grado grado;
+                    if ("gradod".equalsIgnoreCase(tipoGrado)) {
+                        grado = new GradoD(nombreCiclo, 2, Modalidad.PRESENCIAL); // Ajusta según tu lógica
+                    } else if ("gradoe".equalsIgnoreCase(tipoGrado)) {
+                        grado = new GradoE(nombreCiclo, 1, 5); // Ajusta según tu lógica
+                    } else {
+                        throw new IllegalArgumentException("ERROR: Tipo de grado desconocido.");
+                    }
+
+                    cicloFormativo = new CicloFormativo(codigoCiclo, familiaProfesional, grado, nombreCiclo, horas);
+                } else {
+                    throw new IllegalArgumentException("ERROR: No se encontró el ciclo formativo asociado.");
+                }
 
                 resultado = new Asignatura(codigo, nombre, horasAnuales, curso, horasDesdoble, especialidad, cicloFormativo);
             }
@@ -163,6 +213,7 @@ public class Asignaturas implements IAsignaturas {
         }
         return resultado;
     }
+
 
     @Override
     public void borrar(Asignatura asignatura) throws OperationNotSupportedException {
