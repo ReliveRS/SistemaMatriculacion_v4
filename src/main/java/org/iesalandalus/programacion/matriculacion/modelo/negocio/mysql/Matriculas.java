@@ -105,52 +105,51 @@ public class Matriculas implements IMatriculas {
 
     @Override
     public List<Matricula> get() {
-        if (conexion == null) {
-            throw new IllegalStateException("ERROR: La conexión con la base de datos no está inicializada.");
-        }
-
+        verificarConexion();
         List<Matricula> matriculas = new ArrayList<>();
+
         try {
             String sentenciaStr = "SELECT m.idMatricula, m.cursoAcademico, m.fechaMatriculacion, m.fechaAnulacion, " +
-                    "a.dni AS dniAlumno, a.nombre AS nombreAlumno, a.telefono AS telefonoAlumno, a.correo AS correoAlumno " +
+                    "a.dni, a.nombre, a.telefono, a.correo, a.fechaNacimiento " +  // Cambiado dniAlumno por dni
                     "FROM matricula m " +
-                    "JOIN alumno a ON m.dniAlumno = a.dni " +
+                    "JOIN alumno a ON m.dni = a.dni " +  // Cambiado dniAlumno por dni
                     "ORDER BY m.fechaMatriculacion DESC, a.nombre ASC";
-            Statement sentencia = conexion.createStatement();
-            ResultSet filas = sentencia.executeQuery(sentenciaStr);
 
-            while (filas.next()) {
-                // Recuperar datos de la matrícula
-                int idMatricula = filas.getInt("idMatricula");
-                String cursoAcademico = filas.getString("cursoAcademico");
-                LocalDate fechaMatriculacion = filas.getDate("fechaMatriculacion").toLocalDate();
-                LocalDate fechaAnulacion = filas.getDate("fechaAnulacion") != null ? filas.getDate("fechaAnulacion").toLocalDate() : null;
+            try (Statement sentencia = conexion.createStatement();
+                 ResultSet filas = sentencia.executeQuery(sentenciaStr)) {
 
-                // Recuperar datos del alumno
-                String dniAlumno = filas.getString("dniAlumno");
-                String nombreAlumno = filas.getString("nombreAlumno");
-                String telefonoAlumno = filas.getString("telefonoAlumno");
-                String correoAlumno = filas.getString("correoAlumno");
+                while (filas.next()) {
+                    // Recuperar datos del alumno
+                    Alumno alumno = new Alumno(
+                            filas.getString("nombre"),
+                            filas.getString("telefono"),
+                            filas.getString("correo"),
+                            filas.getString("dni"),
+                            filas.getDate("fechaNacimiento").toLocalDate()
+                    );
 
-                Alumno alumno = new Alumno(nombreAlumno, telefonoAlumno, correoAlumno, dniAlumno, LocalDate.now());
+                    // Recuperar datos de la matrícula
+                    int idMatricula = filas.getInt("idMatricula");
+                    String cursoAcademico = filas.getString("cursoAcademico");
+                    LocalDate fechaMatriculacion = filas.getDate("fechaMatriculacion").toLocalDate();
+                    LocalDate fechaAnulacion = filas.getDate("fechaAnulacion") != null ?
+                            filas.getDate("fechaAnulacion").toLocalDate() : null;
 
-                // Recuperar asignaturas asociadas
-                List<Asignatura> asignaturas = getAsignaturasMatricula(idMatricula);
+                    // Obtener asignaturas
+                    List<Asignatura> asignaturas = getAsignaturasMatricula(idMatricula);
 
-                // Crear el objeto Matricula y añadirlo a la lista
-                Matricula matricula = new Matricula(idMatricula, cursoAcademico, fechaMatriculacion, alumno, asignaturas);
-                matricula.setFechaAnulacion(fechaAnulacion);
-                matriculas.add(matricula);
+                    // Crear matrícula
+                    Matricula matricula = new Matricula(idMatricula, cursoAcademico,
+                            fechaMatriculacion, alumno, asignaturas);
+                    matricula.setFechaAnulacion(fechaAnulacion);
+                    matriculas.add(matricula);
+                }
             }
         } catch (SQLException e) {
             throw new IllegalArgumentException(ERROR + "Error al obtener las matrículas: " + e.getMessage(), e);
         }
 
-        if (matriculas.isEmpty()) {
-            System.out.println("No hay matrículas registradas.");
-        }
-
-        return matriculas;
+        return matriculas.isEmpty() ? new ArrayList<>() : matriculas;  // Evitar retorno nulo
     }
 
 
@@ -350,93 +349,271 @@ public class Matriculas implements IMatriculas {
 
     @Override
     public List<Matricula> get(Alumno alumno) {
-        List<Matricula> matriculasAlumno = new ArrayList<>();
-        try {
-            String sentenciaStr = "SELECT * FROM matricula WHERE dniAlumno=?";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
-            sentencia.setString(1, alumno.getDni());
+        verificarConexion();
+        if (alumno == null) {
+            throw new IllegalArgumentException(ERROR + "El alumno no puede ser nulo");
+        }
 
-            ResultSet filas = sentencia.executeQuery();
-            while (filas.next()) {
-                Matricula matriculaBuscada = buscar(new Matricula(filas.getInt("idMatricula"), "", LocalDate.now(), alumno, List.of()));
-                if (matriculaBuscada != null) {
-                    matriculasAlumno.add(matriculaBuscada);
+        List<Matricula> matriculasAlumno = new ArrayList<>();
+        String sql = "SELECT m.* FROM matricula m WHERE m.dni = ? ORDER BY m.fechaMatriculacion DESC";
+
+        try (PreparedStatement ps = conexion.prepareStatement(sql)) {
+            ps.setString(1, alumno.getDni());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    try {
+                        Matricula matricula = crearMatriculaDesdeResultSet(rs);
+                        matriculasAlumno.add(matricula);
+                    } catch (IllegalArgumentException e) {
+                        System.err.println(ERROR + "Error al procesar matrícula: " + e.getMessage());
+                    }
                 }
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + e.toString());
+            throw new IllegalArgumentException(ERROR + "Error al obtener matrículas del alumno", e);
         }
+
         return matriculasAlumno;
     }
 
+    private Matricula crearMatriculaDesdeResultSet(ResultSet rs) throws SQLException {
+        // Obtener alumno desde la base de datos
+        Alumno alumno = Alumnos.getInstancia().buscar(
+                new Alumno("", "", "", rs.getString("dni"), LocalDate.now()));
+
+        if (alumno == null) {
+            throw new IllegalArgumentException("Alumno no encontrado para DNI: " + rs.getString("dni"));
+        }
+
+        // Obtener asignaturas
+        List<Asignatura> asignaturas = getAsignaturasMatricula(rs.getInt("idMatricula"));
+
+        // Crear matrícula
+        Matricula matricula = new Matricula(
+                rs.getInt("idMatricula"),
+                rs.getString("cursoAcademico"),
+                rs.getDate("fechaMatriculacion").toLocalDate(),
+                alumno,
+                asignaturas
+        );
+
+        if (rs.getDate("fechaAnulacion") != null) {
+            matricula.setFechaAnulacion(rs.getDate("fechaAnulacion").toLocalDate());
+        }
+
+        return matricula;
+    }
+
+
+
+
     @Override
     public List<Matricula> get(String cursoAcademico) {
-        List<Matricula> matriculasCursoAcademico = new ArrayList<>();
-        try {
-            String sentenciaStr = "SELECT * FROM matricula WHERE cursoAcademico=?";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
-            sentencia.setString(1, cursoAcademico);
+        verificarConexion();
+        if (cursoAcademico == null || cursoAcademico.trim().isEmpty()) {
+            throw new IllegalArgumentException(ERROR + "El curso académico no puede ser nulo o vacío");
+        }
 
-            ResultSet filas = sentencia.executeQuery();
-            while (filas.next()) {
-                Matricula matriculaBuscada = buscar(new Matricula(filas.getInt("idMatricula"), cursoAcademico, LocalDate.now(), null, List.of()));
-                if (matriculaBuscada != null) {
-                    matriculasCursoAcademico.add(matriculaBuscada);
+        List<Matricula> matriculas = new ArrayList<>();
+        String sql = "SELECT m.idMatricula, m.cursoAcademico, m.fechaMatriculacion, " +
+                "m.fechaAnulacion, m.dni, a.nombre, a.telefono, a.correo, a.fechaNacimiento " +
+                "FROM matricula m " +
+                "JOIN alumno a ON m.dni = a.dni " +
+                "WHERE m.cursoAcademico = ? " +
+                "ORDER BY m.fechaMatriculacion DESC";
+
+        try (PreparedStatement ps = conexion.prepareStatement(sql)) {
+            ps.setString(1, cursoAcademico);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    try {
+                        // Crear alumno
+                        Alumno alumno = new Alumno(
+                                rs.getString("nombre"),
+                                rs.getString("telefono"),
+                                rs.getString("correo"),
+                                rs.getString("dni"),
+                                rs.getDate("fechaNacimiento").toLocalDate()
+                        );
+
+                        // Obtener asignaturas
+                        List<Asignatura> asignaturas = new ArrayList<>();
+                        String sqlAsignaturas = "SELECT a.codigo, a.nombre, a.horasAnuales, " +
+                                "a.horasDesdoble, a.curso, a.especialidadProfesorado, " +
+                                "cf.codigo AS cicloCodigo, cf.familiaProfesional, " +
+                                "cf.grado, cf.nombre AS cicloNombre, cf.horas AS cicloHoras " +
+                                "FROM asignatura a " +
+                                "JOIN asignaturasMatricula am ON a.codigo = am.codigo " +
+                                "JOIN cicloFormativo cf ON a.cicloFormativo = cf.codigo " +
+                                "WHERE am.idMatricula = ?";
+
+                        try (PreparedStatement psAsignaturas = conexion.prepareStatement(sqlAsignaturas)) {
+                            psAsignaturas.setInt(1, rs.getInt("idMatricula"));
+                            try (ResultSet rsAsignaturas = psAsignaturas.executeQuery()) {
+                                while (rsAsignaturas.next()) {
+                                    // Crear ciclo formativo
+                                    int cicloCodigo = rsAsignaturas.getInt("cicloCodigo");
+                                    String familia = rsAsignaturas.getString("familiaProfesional");
+                                    String tipoGrado = rsAsignaturas.getString("grado");
+                                    String cicloNombre = rsAsignaturas.getString("cicloNombre");
+                                    int cicloHoras = rsAsignaturas.getInt("cicloHoras");
+
+                                    Grado grado;
+                                    if ("gradod".equalsIgnoreCase(tipoGrado)) {
+                                        grado = new GradoD(cicloNombre, 2, Modalidad.PRESENCIAL);
+                                    } else {
+                                        grado = new GradoE(cicloNombre, 1, 5);
+                                    }
+
+                                    CicloFormativo ciclo = new CicloFormativo(cicloCodigo, familia, grado, cicloNombre, cicloHoras);
+
+                                    // Crear asignatura
+                                    Asignatura asignatura = new Asignatura(
+                                            rsAsignaturas.getString("codigo"),
+                                            rsAsignaturas.getString("nombre"),
+                                            rsAsignaturas.getInt("horasAnuales"),
+                                            Curso.valueOf(rsAsignaturas.getString("curso").toUpperCase()),
+                                            rsAsignaturas.getInt("horasDesdoble"),
+                                            EspecialidadProfesorado.valueOf(rsAsignaturas.getString("especialidadProfesorado").toUpperCase()),
+                                            ciclo
+                                    );
+                                    asignaturas.add(asignatura);
+                                }
+                            }
+                        }
+
+                        // Crear matrícula
+                        Matricula matricula = new Matricula(
+                                rs.getInt("idMatricula"),
+                                rs.getString("cursoAcademico"),
+                                rs.getDate("fechaMatriculacion").toLocalDate(),
+                                alumno,
+                                asignaturas
+                        );
+
+                        if (rs.getDate("fechaAnulacion") != null) {
+                            matricula.setFechaAnulacion(rs.getDate("fechaAnulacion").toLocalDate());
+                        }
+
+                        matriculas.add(matricula);
+                    } catch (SQLException | IllegalArgumentException e) {
+                        System.err.println(ERROR + "Error al procesar matrícula: " + e.getMessage());
+                        // Continuar con la siguiente matrícula
+                    }
                 }
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + e.toString());
+            throw new IllegalArgumentException(ERROR + "Error al obtener matrículas por curso académico", e);
         }
-        return matriculasCursoAcademico;
+
+        return matriculas;
     }
+
 
     @Override
     public List<Matricula> get(CicloFormativo cicloFormativo) {
         verificarConexion();
         if (cicloFormativo == null) {
-            throw new IllegalArgumentException(ERROR + "Ciclo formativo no puede ser nulo");
+            throw new IllegalArgumentException(ERROR + "El ciclo formativo no puede ser nulo");
         }
 
         List<Matricula> matriculas = new ArrayList<>();
-        String sql = "SELECT DISTINCT m.*, a.* FROM matricula m " +
+        String sql = "SELECT DISTINCT m.idMatricula, m.cursoAcademico, m.fechaMatriculacion, " +
+                "m.fechaAnulacion, m.dni, a.nombre, a.telefono, a.correo, a.fechaNacimiento " +
+                "FROM matricula m " +
                 "JOIN asignaturasMatricula am ON m.idMatricula = am.idMatricula " +
                 "JOIN asignatura asig ON am.codigo = asig.codigo " +
                 "JOIN alumno a ON m.dni = a.dni " +
-                "WHERE asig.cicloFormativoCodigo = ?";
+                "WHERE asig.cicloFormativo = ? " +
+                "ORDER BY m.fechaMatriculacion DESC";
 
         try (PreparedStatement ps = conexion.prepareStatement(sql)) {
             ps.setInt(1, cicloFormativo.getCodigo());
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Alumno alumno = new Alumno(
-                            rs.getString("nombre"),
-                            rs.getString("telefono"),
-                            rs.getString("correo"),
-                            rs.getString("dni"),
-                            rs.getDate("fechaNacimiento").toLocalDate()
-                    );
+                    try {
+                        // Crear alumno
+                        Alumno alumno = new Alumno(
+                                rs.getString("nombre"),
+                                rs.getString("telefono"),
+                                rs.getString("correo"),
+                                rs.getString("dni"),
+                                rs.getDate("fechaNacimiento").toLocalDate()
+                        );
 
-                    List<Asignatura> asignaturas = getAsignaturasMatricula(rs.getInt("idMatricula"));
+                        // Obtener asignaturas
+                        List<Asignatura> asignaturas = new ArrayList<>();
+                        String sqlAsignaturas = "SELECT a.codigo, a.nombre, a.horasAnuales, " +
+                                "a.horasDesdoble, a.curso, a.especialidadProfesorado, " +
+                                "cf.codigo AS cicloCodigo, cf.familiaProfesional, " +
+                                "cf.grado, cf.nombre AS cicloNombre, cf.horas AS cicloHoras " +
+                                "FROM asignatura a " +
+                                "JOIN asignaturasMatricula am ON a.codigo = am.codigo " +
+                                "JOIN cicloFormativo cf ON a.cicloFormativo = cf.codigo " +
+                                "WHERE am.idMatricula = ?";
 
-                    Matricula matricula = new Matricula(
-                            rs.getInt("idMatricula"),
-                            rs.getString("cursoAcademico"),
-                            rs.getDate("fechaMatriculacion").toLocalDate(),
-                            alumno,
-                            asignaturas
-                    );
+                        try (PreparedStatement psAsignaturas = conexion.prepareStatement(sqlAsignaturas)) {
+                            psAsignaturas.setInt(1, rs.getInt("idMatricula"));
+                            try (ResultSet rsAsignaturas = psAsignaturas.executeQuery()) {
+                                while (rsAsignaturas.next()) {
+                                    // Crear ciclo formativo
+                                    int cicloCodigo = rsAsignaturas.getInt("cicloCodigo");
+                                    String familia = rsAsignaturas.getString("familiaProfesional");
+                                    String tipoGrado = rsAsignaturas.getString("grado");
+                                    String cicloNombre = rsAsignaturas.getString("cicloNombre");
+                                    int cicloHoras = rsAsignaturas.getInt("cicloHoras");
 
-                    if (rs.getDate("fechaAnulacion") != null) {
-                        matricula.setFechaAnulacion(rs.getDate("fechaAnulacion").toLocalDate());
+                                    Grado grado;
+                                    if ("gradod".equalsIgnoreCase(tipoGrado)) {
+                                        grado = new GradoD(cicloNombre, 2, Modalidad.PRESENCIAL);
+                                    } else {
+                                        grado = new GradoE(cicloNombre, 1, 5);
+                                    }
+
+                                    CicloFormativo ciclo = new CicloFormativo(cicloCodigo, familia, grado, cicloNombre, cicloHoras);
+
+                                    // Crear asignatura
+                                    Asignatura asignatura = new Asignatura(
+                                            rsAsignaturas.getString("codigo"),
+                                            rsAsignaturas.getString("nombre"),
+                                            rsAsignaturas.getInt("horasAnuales"),
+                                            Curso.valueOf(rsAsignaturas.getString("curso").toUpperCase()),
+                                            rsAsignaturas.getInt("horasDesdoble"),
+                                            EspecialidadProfesorado.valueOf(rsAsignaturas.getString("especialidadProfesorado").toUpperCase()),
+                                            ciclo
+                                    );
+                                    asignaturas.add(asignatura);
+                                }
+                            }
+                        }
+
+                        // Crear matrícula
+                        Matricula matricula = new Matricula(
+                                rs.getInt("idMatricula"),
+                                rs.getString("cursoAcademico"),
+                                rs.getDate("fechaMatriculacion").toLocalDate(),
+                                alumno,
+                                asignaturas
+                        );
+
+                        if (rs.getDate("fechaAnulacion") != null) {
+                            matricula.setFechaAnulacion(rs.getDate("fechaAnulacion").toLocalDate());
+                        }
+
+                        matriculas.add(matricula);
+                    } catch (SQLException | IllegalArgumentException e) {
+                        System.err.println(ERROR + "Error al procesar matrícula: " + e.getMessage());
+                        // Continuar con la siguiente matrícula
                     }
-
-                    matriculas.add(matricula);
                 }
             }
         } catch (SQLException e) {
-            throw new IllegalArgumentException(ERROR + "Error al obtener matrículas por ciclo", e);
+            throw new IllegalArgumentException(ERROR + "Error al obtener matrículas por ciclo formativo", e);
         }
+
         return matriculas;
     }
     private void verificarConexion() {
@@ -449,4 +626,7 @@ public class Matriculas implements IMatriculas {
             throw new IllegalStateException(ERROR + "Error al verificar conexión: " + e.getMessage(), e);
         }
     }
+
+
+
 }
