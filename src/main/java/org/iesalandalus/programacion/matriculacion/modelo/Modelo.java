@@ -44,12 +44,20 @@ public class Modelo {
     }
     public void comenzar() {
         alumnos = fuenteDatos.crearAlumnos();
+        alumnos.comenzar();
+
         asignaturas = fuenteDatos.crearAsignaturas();
+        asignaturas.comenzar();
+
         ciclosFormativos = fuenteDatos.crearCiclosFormativos();
+        ciclosFormativos.comenzar();
+
         matriculas = fuenteDatos.crearMatriculas();
+        matriculas.comenzar();
 
         System.out.println("El modelo ha comenzado con la fuente de datos: " + fuenteDatos.getClass().getSimpleName());
     }
+
 
     public void terminar() {
         System.out.println("El modelo está finalizando...");

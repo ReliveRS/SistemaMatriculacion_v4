@@ -21,7 +21,7 @@ public class MySQL {
         if (conexion != null)
             return conexion;
         try {
-            String urlConexion = String.format("jdbc:mysql://%s/%s?user=%s&password=%s&useSSL=false&serverTimezon=UTC", HOST, ESQUEMA, USUARIO, CONTRASENA);
+            String urlConexion = String.format("jdbc:mysql://%s/%s?user=%s&password=%s&useSSL=false&serverTimezone=UTC", HOST, ESQUEMA, USUARIO, CONTRASENA);
             conexion = DriverManager.getConnection(urlConexion);
             System.out.println("Conexión a MySQL realizada correctamente.");
         } catch (SQLException e) {

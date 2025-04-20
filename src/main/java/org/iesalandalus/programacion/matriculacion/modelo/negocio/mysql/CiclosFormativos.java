@@ -50,30 +50,31 @@ public class CiclosFormativos implements ICiclosFormativos {
         }
     }
 
-    @Override
     public List<CicloFormativo> get() {
         List<CicloFormativo> ciclos = new ArrayList<>();
         try {
             System.out.println("Ejecutando consulta SQL para obtener ciclos formativos...");
-            String sentenciaStr = "SELECT codigo, familiaProfesional, grado, nombre, horas FROM cicloFormativo ORDER BY nombre";
+            String sentenciaStr = "SELECT codigo, familiaProfesional, grado, nombre, horas, nombreGrado, numAniosGrado, modalidad, numEdiciones FROM cicloFormativo ORDER BY nombre";
             Statement sentencia = conexion.createStatement();
             ResultSet filas = sentencia.executeQuery(sentenciaStr);
             while (filas.next()) {
                 int codigo = filas.getInt("codigo");
                 String familiaProfesional = filas.getString("familiaProfesional");
-                if (familiaProfesional == null || familiaProfesional.trim().isEmpty()) {
-                    familiaProfesional = "Sin definir"; // Valor por defecto para evitar errores
-                }
                 String tipoGrado = filas.getString("grado");
                 String nombre = filas.getString("nombre");
                 int horas = filas.getInt("horas");
+                String nombreGrado = filas.getString("nombreGrado");
+                int numAnios = filas.getInt("numAniosGrado");
+                String modalidadStr = filas.getString("modalidad");
+                int numEdiciones = filas.getInt("numEdiciones");
 
-                // Crear el objeto Grado correspondiente
+                Modalidad modalidad = modalidadStr != null ? Modalidad.valueOf(modalidadStr.toUpperCase()) : Modalidad.PRESENCIAL;
+
                 Grado grado;
-                if ("GRADOD".equalsIgnoreCase(tipoGrado)) {
-                    grado = new GradoD(nombre, 2, Modalidad.PRESENCIAL); // Valores ficticios para modalidad y años
-                } else if ("GRADOE".equalsIgnoreCase(tipoGrado)) {
-                    grado = new GradoE(nombre, 1, 5); // Valores ficticios para ediciones
+                if ("gradod".equalsIgnoreCase(tipoGrado)) {
+                    grado = new GradoD(nombreGrado, numAnios, modalidad);
+                } else if ("gradoe".equalsIgnoreCase(tipoGrado)) {
+                    grado = new GradoE(nombreGrado, numAnios, numEdiciones);
                 } else {
                     throw new IllegalArgumentException("ERROR: Tipo de grado desconocido.");
                 }
@@ -87,6 +88,7 @@ public class CiclosFormativos implements ICiclosFormativos {
         System.out.println("Número de ciclos formativos obtenidos: " + ciclos.size());
         return ciclos;
     }
+
 
 
 
@@ -153,28 +155,32 @@ public class CiclosFormativos implements ICiclosFormativos {
         if (cicloFormativo == null) {
             throw new IllegalArgumentException("ERROR: No se puede buscar un ciclo formativo nulo.");
         }
+
         CicloFormativo resultado = null;
-        try {
-            String sentenciaStr = "SELECT codigo, familiaProfesional, grado, nombre, horas FROM cicloFormativo WHERE codigo=?";
-            PreparedStatement sentencia = conexion.prepareStatement(sentenciaStr);
-            sentencia.setInt(1, cicloFormativo.getCodigo());
+        String sql = "SELECT codigo, familiaProfesional, grado, nombre, horas, nombreGrado, numAniosGrado, modalidad, numEdiciones FROM cicloFormativo WHERE codigo = ?";
 
-            ResultSet filas = sentencia.executeQuery();
-            if (filas.next()) {
-                int codigo = filas.getInt("codigo");
-                String familiaProfesional = filas.getString("familiaProfesional");
-                String tipoGrado = filas.getString("grado");
-                String nombre = filas.getString("nombre");
-                int horas = filas.getInt("horas");
+        try (PreparedStatement ps = conexion.prepareStatement(sql)) {
+            ps.setInt(1, cicloFormativo.getCodigo());
+            ResultSet rs = ps.executeQuery();
 
-                // Crear el objeto Grado correspondiente basado en el valor de la columna 'grado'
+            if (rs.next()) {
+                int codigo = rs.getInt("codigo");
+                String familiaProfesional = rs.getString("familiaProfesional");
+                String tipoGrado = rs.getString("grado");
+                String nombre = rs.getString("nombre");
+                int horas = rs.getInt("horas");
+                String nombreGrado = rs.getString("nombreGrado");
+                int numAnios = rs.getInt("numAniosGrado");
+                String modalidadStr = rs.getString("modalidad");
+                int numEdiciones = rs.getInt("numEdiciones");
+
+                // Construir el Grado correctamente
                 Grado grado;
                 if ("gradod".equalsIgnoreCase(tipoGrado)) {
-                    grado = new GradoD(nombre, 2, Modalidad.PRESENCIAL); // Valores ficticios para modalidad y años
-                } else if ("gradoe".equalsIgnoreCase(tipoGrado)) {
-                    grado = new GradoE(nombre, 1, 5); // Valores ficticios para ediciones
+                    Modalidad modalidad = Modalidad.valueOf(modalidadStr.toUpperCase());
+                    grado = new GradoD(nombreGrado, numAnios, modalidad);
                 } else {
-                    throw new IllegalArgumentException("ERROR: Tipo de grado desconocido.");
+                    grado = new GradoE(nombreGrado, numAnios, numEdiciones);
                 }
 
                 resultado = new CicloFormativo(codigo, familiaProfesional, grado, nombre, horas);
@@ -182,8 +188,13 @@ public class CiclosFormativos implements ICiclosFormativos {
         } catch (SQLException e) {
             throw new IllegalArgumentException(ERROR + e.getMessage());
         }
+
         return resultado;
     }
+
+
+
+
 
 
 

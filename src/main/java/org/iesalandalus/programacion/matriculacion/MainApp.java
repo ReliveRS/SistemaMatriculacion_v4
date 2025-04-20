@@ -8,13 +8,6 @@ import org.iesalandalus.programacion.utilidades.Entrada;
 
 public class MainApp {
 
-    /**
-     * Procesa los argumentos para determinar la fuente de datos y crea el modelo correspondiente.
-     * @param args Argumentos pasados a la aplicación.
-     * @return Modelo configurado según la fuente de datos especificada.
-     */
-
-
     public static Modelo procesarArgumentosFuenteDatos(String[] args) {
         // Si no se pasan argumentos, solicita al usuario que elija una opción
         if (args == null || args.length == 0) {
