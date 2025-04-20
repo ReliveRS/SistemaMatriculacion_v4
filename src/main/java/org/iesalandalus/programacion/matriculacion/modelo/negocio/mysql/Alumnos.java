@@ -66,11 +66,8 @@ public class Alumnos implements IAlumnos {
             System.err.println(ERROR + e.getMessage());
         }
         System.out.println("Número de alumnos obtenidos: " + alumnos.size());
-        return alumnos; // Devuelve una lista vacía si ocurre un error
+        return alumnos;
     }
-
-
-
 
 
     @Override

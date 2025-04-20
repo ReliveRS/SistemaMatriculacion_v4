@@ -23,16 +23,7 @@ public class Matriculas implements IMatriculas {
     }
     @Override
     public void comenzar() {
-        try {
-            if (conexion == null || conexion.isClosed()) {
-                conexion = MySQL.establecerConexion();
-                // Configuración adicional recomendada
-                conexion.setAutoCommit(true);
-                conexion.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException(ERROR + "No se pudo establecer la conexión: " + e.getMessage(), e);
-        }
+        conexion = MySQL.establecerConexion();
     }
 
     @Override
